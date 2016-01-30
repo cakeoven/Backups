@@ -34,8 +34,16 @@ class BackupShell extends Shell {
  * @var array
  * @access public
  */
-	var $args;
+	public $args;
+
+/**
+ * @var string
+ */
 	public $path;
+
+/**
+ * @var string
+ */
 	public $dataSourceName;
 
 /**
@@ -43,20 +51,20 @@ class BackupShell extends Shell {
  *
  * @access public
  */
-	function main() {
-		
+	public function main() {
+
 		$dataSourceName = 'default';
-		
-		$path = APP_DIR . DS .'Backups' . DS;
+
+		$path = APP_DIR . DS . 'Backups' . DS;
 
 		$Folder = new Folder($path, true);
-		
-		$fileSufix = date('Ymd\_His') . '.sql';
-		$file = $path . $fileSufix;
+
+		$fileSuffix = date('Ymd\_His') . '.sql';
+		$file = $path . $fileSuffix;
 		if (!is_writable($path)) {
 			trigger_error('The path "' . $path . '" isn\'t writable!', E_USER_ERROR);
 		}
-		
+
 		$this->out("Backing up...\n");
 		$File = new File($file);
 
@@ -64,20 +72,20 @@ class BackupShell extends Shell {
 
 		$config = $db->config;
 		$this->connection = "default";
-		
+
 		foreach ($db->listSources() as $table) {
-		
+
 			$table = str_replace($config['prefix'], '', $table);
 			// $table = str_replace($config['prefix'], '', 'dinings');
 			$ModelName = Inflector::classify($table);
 			$Model = ClassRegistry::init($ModelName);
 			$DataSource = $Model->getDataSource();
-			$this->Schema = new CakeSchema(array('connection' => $this->connection));
-			
+			$this->Schema = new CakeSchema(['connection' => $this->connection]);
+
 			$cakeSchema = $db->describe($table);
 			// $CakeSchema = new CakeSchema();
-			$this->Schema->tables = array($table => $cakeSchema);
-			
+			$this->Schema->tables = [$table => $cakeSchema];
+
 			$File->write("\n/* Drop statement for {$table} */\n");
 			$File->write("SET foreign_key_checks = 0;");
 			// $File->write($DataSource->dropSchema($this->Schema, $table) . "\n");
@@ -90,15 +98,15 @@ class BackupShell extends Shell {
 
 			$File->write("\n/* Backuping table data {$table} */\n");
 
-		
+
 			unset($valueInsert, $fieldInsert);
 
-			$rows = $Model->find('all', array('recursive' => -1));
+			$rows = $Model->find('all', ['recursive' => -1]);
 			$quantity = 0;
-			
+
 			if (sizeOf($rows) > 0) {
 				$fields = array_keys($rows[0][$ModelName]);
-				$values = array_values($rows);	
+				$values = array_values($rows);
 				$count = count($fields);
 
 				for ($i = 0; $i < $count; $i++) {
@@ -112,17 +120,17 @@ class BackupShell extends Shell {
 						$valueInsert[] = $DataSource->value(utf8_encode($row[$ModelName][$fields[$i]]), $Model->getColumnType($fields[$i]), false);
 					}
 
-					$query = array(
+					$query = [
 						'table' => $DataSource->fullTableName($table),
 						'fields' => $fieldsInsertComma,
-						'values' => implode(', ', $valueInsert)
-					);		
+						'values' => implode(', ', $valueInsert),
+					];
 					$File->write($DataSource->renderStatement('create', $query) . ";\n");
 					$quantity++;
 				}
 
 			}
-			
+
 			$this->out('Model "' . $ModelName . '" (' . $quantity . ')');
 		}
 		$File->close();
@@ -132,7 +140,7 @@ class BackupShell extends Shell {
 			$this->out('Zipping...');
 			$zip = new ZipArchive();
 			$zip->open($file . '.zip', ZIPARCHIVE::CREATE);
-			$zip->addFile($file, $fileSufix);
+			$zip->addFile($file, $fileSuffix);
 			$zip->close();
 			$this->out("Zip \"" . $file . ".zip\" Saved (" . filesize($file . '.zip') . " bytes)\n");
 			$this->out("Zipping Done!");
@@ -143,88 +151,87 @@ class BackupShell extends Shell {
 		}
 	}
 
-	function restore(){
+	public function restore() {
 		$dataSourceName = 'default';
-		
-		$path = APP_DIR . DS .'Backups' . DS;
+
+		$path = APP_DIR . DS . 'Backups' . DS;
 
 		$tmpath = APP_DIR . DS . 'tmp';
 
 		$backupFolder = new Folder($path);
-		
+
 		// Get the list of files
-		list($dirs, $files)     = $backupFolder->read();
-		
+		list($dirs, $files) = $backupFolder->read();
+
 		// Remove any un related files
-		foreach ($files as $i => $file) { 
-        if (!preg_match( '/\.sql/', $file))  { 
-                unset($files[$i]);
-            }
-        }
+		foreach ($files as $i => $file) {
+			if (!preg_match('/\.sql/', $file)) {
+				unset($files[$i]);
+			}
+		}
 
-        // Sort, explode the files to an array and list files
-        sort($files, SORT_NUMERIC); 
-        foreach ($files as $i => $file) { 
-            $fileParts = explode(".", $file); 
-            $backup_date = strtotime(str_replace("_", "", $fileParts[0]));
-            $this->out("[".$i."]: ".date("F j, Y, g:i:s a", $backup_date));
-        }
+		// Sort, explode the files to an array and list files
+		sort($files, SORT_NUMERIC);
+		foreach ($files as $i => $file) {
+			$fileParts = explode(".", $file);
+			$backup_date = strtotime(str_replace("_", "", $fileParts[0]));
+			$this->out("[" . $i . "]: " . date("F j, Y, g:i:s a", $backup_date));
+		}
 
-        App::import('Model', 'AppModel'); 
-         
-        $model = new AppModel(false, false);
+		App::import('Model', 'AppModel');
 
-        // Prompt for the file to restore to
-        $this->hr();
-        $u_response = $this->in('Type Backup File Number? [or press enter to skip]');
-        
-        if ($u_response == "") { 
-	        $this->out('Exiting');
-	    } else {
-	    	$zipfile = $path.$files[$u_response];
-	    	if(array_key_exists($u_response, $files)){
-	    		$this->out('Restoring file: '.$zipfile);
-	    		$fileParts = explode(".",$files[$u_response]);
-	    		
-	    		if(isset($fileParts[2]) && $fileParts[2]=='zip'){
-	    			$this->out('Unzipping File');
-	    			if (class_exists('ZipArchive')) {
-	    				$zip = new ZipArchive;
-	    				if($zip->open($zipfile) === TRUE){
-	    					$zip->extractTo($tmpath);
-	    					$unzipped_file = $tmpath.DS.$zip->getNameIndex(0);
-	    					$zip->close();
-	    					$this->out('Successfully Unzipped');
-	    				} else {
-	    					$this->out('Unzip Failed');
-	    					$this->_stop();
-	    				}
-	    			} else {
-	    				$this->out('ZipArchive not found, cannot Unzip File!');
-	    				$this->_stop();
-	    			}
-	    		}
+		$model = new AppModel(false, false);
 
-	    		if (($sql_content = file_get_contents($filename = $unzipped_file)) !== false){
-	    			$this->out('Restoring Database');
-	    			$sql = explode("\n\n", $sql_content);
-	    			foreach ($sql as $key => $s) {
-	    				if(trim($s)){
-	    					$result = $model->query($s);
-	    				}
-	    			}
-	    			unlink($unzipped_file);
-	    		} else {
-	    			$this->out("Couldn't load contents of file {$unzipped_file}, aborting...");
-	    			unlink($unzipped_file);
-            		$this->_stop();
-	    		}
-	    	} else {
-	    		$this->out("Invalid File Number");
-	    		$this->_stop();
-	    	}
+		// Prompt for the file to restore to
+		$this->hr();
+		$u_response = $this->in('Type Backup File Number? [or press enter to skip]');
+
+		if ($u_response == "") {
+			$this->out('Exiting');
+		} else {
+			$zipfile = $path . $files[$u_response];
+			if (array_key_exists($u_response, $files)) {
+				$this->out('Restoring file: ' . $zipfile);
+				$fileParts = explode(".", $files[$u_response]);
+
+				if (isset($fileParts[2]) && $fileParts[2] == 'zip') {
+					$this->out('Unzipping File');
+					if (class_exists('ZipArchive')) {
+						$zip = new ZipArchive;
+						if ($zip->open($zipfile) === true) {
+							$zip->extractTo($tmpath);
+							$unzipped_file = $tmpath . DS . $zip->getNameIndex(0);
+							$zip->close();
+							$this->out('Successfully Unzipped');
+						} else {
+							$this->out('Unzip Failed');
+							$this->_stop();
+						}
+					} else {
+						$this->out('ZipArchive not found, cannot Unzip File!');
+						$this->_stop();
+					}
+				}
+
+				if (($sql_content = file_get_contents($filename = $unzipped_file)) !== false) {
+					$this->out('Restoring Database');
+					$sql = explode("\n\n", $sql_content);
+					foreach ($sql as $key => $s) {
+						if (trim($s)) {
+							$result = $model->query($s);
+						}
+					}
+					unlink($unzipped_file);
+				} else {
+					$this->out("Couldn't load contents of file {$unzipped_file}, aborting...");
+					unlink($unzipped_file);
+					$this->_stop();
+				}
+			} else {
+				$this->out("Invalid File Number");
+				$this->_stop();
+			}
 		}
 
 	}
 }
-?>
