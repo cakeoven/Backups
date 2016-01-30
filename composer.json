@@ -1,0 +1,33 @@
+{
+  "name": "maldicore/backups",
+  "description": "A CakePHP Plugin to easily backup and restore databases",
+  "homepage": "https://github.com/Maldicore/Backups",
+  "type": "cakephp-plugin",
+  "keywords": [
+    "cakephp",
+    "plugin",
+    "backup"
+  ],
+  "license": "MIT",
+  "support": {
+    "issues": "https://github.com/Maldicore/Backups/issues"
+  },
+  "require": {
+    "php": ">=5.4.16",
+    "cakephp/cakephp": "^2.7",
+    "composer/installers": "*"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "*"
+  },
+  "suggest": {
+    "apigen/apigen": "*"
+  },
+  "prefer-stable": true,
+  "extra": {
+    "branch-alias": {
+      "dev-master": "1.x-dev"
+    },
+    "installer-name": "CakeBackups"
+  }
+}
